@@ -1,132 +1,195 @@
-### Documentação do Código
-
-O código fornecido implementa uma aplicação web com Flask para monitoramento de IPs, permitindo verificações de status, adição e remoção de IPs, além de suporte a traduções para português e inglês. Aqui está uma explicação detalhada:
+Aqui está a **documentação do código Flask** fornecido. Abaixo está uma explicação detalhada de cada componente, rota, e como o código funciona:
 
 ---
 
-### **Descrição Geral**
-1. **Propósito:**
-   - Monitorar IPs com verificações de "ping" para determinar se são alcançáveis.
-   - Retornar latência simulada ou real (se possível).
-   - Oferecer suporte a diferentes idiomas (português e inglês).
-   - Permitir adição e remoção de IPs dinamicamente.
-
-2. **Bibliotecas Usadas:**
-   - `Flask`: Framework para criação de aplicações web.
-   - `Flask-CORS`: Para permitir solicitações de outros domínios (evitar problemas de CORS).
-   - `ping3`: Para realizar "pings" nos IPs e verificar conectividade.
-   - `jsonify` e `request`: Para lidar com JSON e dados recebidos em requisições.
+### **1. Introdução**
+Este código cria um **Dashboard de Monitoramento de IPs** usando o Flask. Ele inclui as seguintes funcionalidades:
+- Monitoramento de uma lista de IPs e seus status (ativo/inativo).
+- Relatórios de IPs com alta latência.
+- Alterações dinâmicas na lista de IPs (adicionar, remover ou modificar).
+- Integração com um front-end (HTML).
 
 ---
 
-### **Estrutura do Código**
+### **2. Dependências**
+Certifique-se de que as bibliotecas necessárias estão instaladas:
+- **Flask:** Framework web.
+- **Flask-CORS:** Para evitar problemas de CORS ao integrar com o front-end.
+- **ping3:** Para realizar "ping" nos IPs e medir latências.
 
-#### **1. Lista Global de IPs**
+Instale as dependências:
+```bash
+pip install flask flask-cors ping3
+```
+
+---
+
+### **3. Estrutura do Código**
+
+#### **3.1. Configurações Iniciais**
+```python
+from flask import Flask, jsonify, request, render_template
+from flask_cors import CORS
+import ping3
+```
+- `Flask`: Cria o servidor web.
+- `CORS`: Resolve problemas de **Cross-Origin Resource Sharing**.
+- `ping3`: Realiza testes de ping para medir latências.
+
+#### **3.2. Lista de IPs**
 ```python
 ips = ["192.168.1.1", "8.8.8.8", "127.0.0.1"]
 ```
-- Lista global que armazena os IPs que serão monitorados.
+- Lista global de IPs para monitoramento.
 
-#### **2. Traduções por Idioma**
+#### **3.3. Traduções**
 ```python
 translations = {
     "pt": {"active": "Ativo", "inactive": "Inativo", "latency_na": "N/D"},
     "en": {"active": "Active", "inactive": "Inactive", "latency_na": "N/A"}
 }
 ```
-- Dicionário contendo mensagens específicas por idioma:
-  - "active" e "inactive" indicam se o IP é alcançável.
-  - "latency_na" significa "latência não disponível".
+- Mensagens traduzidas para os idiomas suportados: Português (`pt`) e Inglês (`en`).
 
 ---
 
-#### **3. Rota `/status`**
-##### **Descrição:**
-- **Método HTTP:** `GET`.
-- **Função:** Retorna o status de cada IP (alcançável ou não) e latência.
+### **4. Rotas**
 
-##### **Código:**
+#### **4.1. Rota `/status`**
+- Método: **GET**
+- Descrição: Retorna o status de todos os IPs monitorados.
+- URL de exemplo: `http://127.0.0.1:5000/status?lang=pt`
+- Código:
 ```python
 @app.route('/status', methods=['GET'])
 def get_status():
-    lang = request.args.get('lang', 'pt')  # Padrão é 'pt'
+    # Obtém o idioma da requisição (default: pt)
+    lang = request.args.get('lang', 'pt')
     translation = translations.get(lang, translations['pt'])
 
     status = {}
+    high_latency_ips = []
+    max_latency = 0
+    max_latency_ip = None
+
+    # Realiza ping em cada IP
     for ip in ips:
-        latency = ping3.ping(ip)
-        status[ip] = {
-            "status": translation["active"] if latency else translation["inactive"],
-            "latency": latency or translation["latency_na"]
-        }
-    return jsonify(status)
+        try:
+            latency = ping3.ping(ip)  # Realiza o ping
+            if latency:
+                latency_ms = round(latency * 1000, 2)  # Converte para ms
+                status[ip] = {
+                    "status": translation["active"],
+                    "latency": latency_ms
+                }
+                if latency_ms > 100:  # Alerta de alta latência
+                    high_latency_ips.append(f"{ip} ({latency_ms} ms)")
+                if latency_ms > max_latency:
+                    max_latency = latency_ms
+                    max_latency_ip = ip
+            else:
+                status[ip] = {
+                    "status": translation["inactive"],
+                    "latency": translation["latency_na"]
+                }
+        except Exception:
+            status[ip] = {
+                "status": translation["inactive"],
+                "latency": translation["latency_na"]
+            }
+
+    return jsonify({
+        "status": status,
+        "high_latency_ips": high_latency_ips,
+        "max_latency_ip": max_latency_ip,
+        "max_latency": max_latency if max_latency_ip else translation["latency_na"]
+    })
 ```
 
-##### **Funcionamento:**
-1. Recebe o parâmetro `lang` para definir o idioma (padrão: português).
-2. Itera sobre os IPs e realiza um `ping` em cada um:
-   - Retorna "active" ou "inactive", dependendo se o IP é alcançável.
-   - Adiciona a latência (ou uma mensagem padrão, como "N/D" ou "N/A").
-3. Retorna os dados no formato JSON.
-
-##### **Exemplo de Resposta (em JSON):**
+**Resposta Exemplo (JSON):**
 ```json
 {
-    "192.168.1.1": {"status": "Ativo", "latency": 25.5},
-    "8.8.8.8": {"status": "Ativo", "latency": 15.1},
-    "127.0.0.1": {"status": "Inativo", "latency": "N/D"}
+    "status": {
+        "192.168.1.1": {"status": "Ativo", "latency": 42.34},
+        "8.8.8.8": {"status": "Ativo", "latency": 120.56},
+        "127.0.0.1": {"status": "Inativo", "latency": "N/D"}
+    },
+    "high_latency_ips": ["8.8.8.8 (120.56 ms)"],
+    "max_latency_ip": "8.8.8.8",
+    "max_latency": 120.56
 }
 ```
 
 ---
 
-#### **4. Rota `/update_ips`**
-##### **Descrição:**
-- **Método HTTP:** `POST`.
-- **Função:** Permite adicionar ou remover IPs da lista global.
-
-##### **Código:**
+#### **4.2. Rota `/update_ips`**
+- Método: **POST**
+- Descrição: Permite modificar a lista de IPs (adicionar, remover ou atualizar).
+- Código:
 ```python
 @app.route('/update_ips', methods=['POST'])
 def update_ips():
     global ips
     data = request.get_json()
 
+    # Adicionar um novo IP
     if 'add' in data:
-        ips.append(data['add'])
+        ip_to_add = data['add']
+        if ip_to_add not in ips:
+            ips.append(ip_to_add)
+            return jsonify({"message": f"IP {ip_to_add} adicionado com sucesso.", "updated_ips": ips})
+        else:
+            return jsonify({"error": "IP já está na lista."}), 400
 
-    if 'remove' in data and data['remove'] in ips:
-        ips.remove(data['remove'])
+    # Remover um IP existente
+    if 'remove' in data:
+        ip_to_remove = data['remove']
+        if ip_to_remove in ips:
+            ips.remove(ip_to_remove)
+            return jsonify({"message": f"IP {ip_to_remove} removido com sucesso.", "updated_ips": ips})
+        else:
+            return jsonify({"error": "IP não encontrado na lista."}), 404
 
-    return jsonify({"updated_ips": ips})
+    # Modificar um IP existente
+    if 'modify' in data:
+        old_ip = data['modify'].get('old_ip')
+        new_ip = data['modify'].get('new_ip')
+        if old_ip in ips and new_ip not in ips:
+            ips[ips.index(old_ip)] = new_ip
+            return jsonify({"message": f"IP {old_ip} modificado para {new_ip}.", "updated_ips": ips})
+        else:
+            return jsonify({"error": "IP inválido ou já existente."}), 400
+
+    return jsonify({"error": "Ação inválida."}), 400
 ```
 
-##### **Funcionamento:**
-1. Recebe um JSON com os campos `add` ou `remove`.
-2. Se `add` for enviado:
-   - Adiciona o IP à lista `ips`.
-3. Se `remove` for enviado:
-   - Remove o IP da lista, se ele existir.
-4. Retorna a lista atualizada de IPs.
+**Exemplo:**
+1. Adicionar um IP:
+   ```bash
+   curl -X POST -H "Content-Type: application/json" -d '{"add": "192.168.0.10"}' http://127.0.0.1:5000/update_ips
+   ```
 
-##### **Exemplo de Requisição (cURL):**
-Adicionar um IP:
-```bash
-curl -X POST -H "Content-Type: application/json" -d '{"add": "192.168.0.100"}' http://127.0.0.1:5000/update_ips
-```
-Remover um IP:
-```bash
-curl -X POST -H "Content-Type: application/json" -d '{"remove": "192.168.0.100"}' http://127.0.0.1:5000/update_ips
+2. Remover um IP:
+   ```bash
+   curl -X POST -H "Content-Type: application/json" -d '{"remove": "8.8.8.8"}' http://127.0.0.1:5000/update_ips
+   ```
+
+3. Modificar um IP:
+   ```bash
+   curl -X POST -H "Content-Type: application/json" -d '{"modify": {"old_ip": "127.0.0.1", "new_ip": "192.168.0.20"}}' http://127.0.0.1:5000/update_ips
+   ```
+
+**Resposta Exemplo (JSON):**
+```json
+{"message": "IP 127.0.0.1 modificado para 192.168.0.20.", "updated_ips": ["192.168.1.1", "8.8.8.8", "192.168.0.20"]}
 ```
 
 ---
 
-#### **5. Rota `/`**
-##### **Descrição:**
-- **Método HTTP:** `GET`.
-- **Função:** Renderiza o arquivo HTML `monips.html` para exibir um dashboard no navegador.
-
-##### **Código:**
+#### **4.3. Rota `/`**
+- Método: **GET**
+- Descrição: Renderiza o arquivo `monips.html`, que é a interface do usuário.
+- Código:
 ```python
 @app.route('/', methods=['GET'])
 def home():
@@ -135,44 +198,19 @@ def home():
 
 ---
 
-#### **6. Execução do Servidor**
-```python
-if __name__ == '__main__':
-    app.run(debug=True)
+### **5. Execução**
+- Execute o servidor:
+```bash
+python app.py
 ```
-- Executa o servidor Flask no modo de depuração. Isso exibe erros detalhados e reinicia o servidor automaticamente quando o código é alterado.
+- Acesse no navegador: `http://127.0.0.1:5000/`.
 
 ---
 
-### **Pontos de Expansão**
+### **6. Melhorias Sugestivas**
 1. **Validação de IPs:**
-   - Adicione uma função para verificar se o IP é válido antes de adicioná-lo.
-   ```python
-   def is_valid_ip(ip):
-       pattern = r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$"
-       if re.match(pattern, ip):
-           octets = ip.split(".")
-           return all(0 <= int(octet) <= 255 for octet in octets)
-       return False
-   ```
+   - Use validação adicional para aceitar somente IPs no formato correto (pode ser incluído com Regex).
+2. **Persistência de Dados:**
+   - Armazene a lista de IPs em um arquivo ou banco de dados para manter os dados após reiniciar o servidor.
 
-2. **Mensagens de Erro:**
-   - Garanta que as respostas JSON para erros sejam informativas, como:
-     - `"IP inválido."`
-     - `"IP já está na lista."`
-
-3. **Persistência de Dados:**
-   - Use um banco de dados para salvar a lista de IPs e garantir que os dados persistam após reinicializar o servidor.
-
-4. **Dashboard Interativo:**
-   - Expanda o arquivo `monips.html` para incluir gráficos interativos (por exemplo, usando Chart.js para visualizar a latência dos IPs).
-
----
-
-### **Resumo**
-Este código demonstra uma aplicação Flask simples e funcional para monitorar IPs. Ele oferece suporte a:
-- Verificação do status de IPs em tempo real.
-- Troca de idioma entre português e inglês.
-- Adição e remoção dinâmica de IPs.
-
-Se precisar de melhorias ou mais explicações sobre como integrar o front-end ao back-end, me avise! 😊
+Se precisar de mais explicações ou ajustes, é só avisar! 🚀✨
