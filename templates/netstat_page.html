@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Netstat Monitor</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1, h3 {
+            color: #007bff;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        #netstatMessage {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Netstat Monitor</h1>
+
+    <!-- Formulário para adicionar IP -->
+    <div id="addNetstatIp">
+        <h3>Adicionar IP ao Netstat</h3>
+        <form id="netstatForm">
+            <input type="text" id="netstatIpInput" placeholder="Digite o IP (ex: 192.168.1.100:5000)" required>
+            <button type="submit">Adicionar IP</button>
+        </form>
+        <p id="netstatMessage"></p>
+    </div>
+
+    <!-- Tabela para exibir os resultados do Netstat -->
+    <div id="netstatTable">
+        <h3>Saída do Netstat</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Protocolo</th>
+                    <th>Endereço Local</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="netstatBody">
+                <!-- Linhas serão adicionadas dinamicamente -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Função para buscar os dados do Netstat do backend
+        async function fetchNetstat() {
+            try {
+                const response = await fetch('/netstat');
+                const data = await response.json();
+                const netstatBody = document.getElementById('netstatBody');
+                netstatBody.innerHTML = ''; // Limpa a tabela antes de adicionar os dados
+
+                if (data.netstat_output) {
+                    data.netstat_output.forEach(line => {
+                        const row = document.createElement('tr');
+                        const columns = line.split(/\s+/); // Divide a linha em colunas
+                        if (columns.length >= 3) {
+                            row.innerHTML = `
+                                <td>${columns[0]}</td>
+                                <td>${columns[1]}</td>
+                                <td>${columns[2]}</td>
+                            `;
+                            netstatBody.appendChild(row);
+                        }
+                    });
+                } else {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `<td colspan="3">Nenhum dado disponível</td>`;
+                    netstatBody.appendChild(row);
+                }
+            } catch (error) {
+                console.error("Erro ao buscar dados do Netstat:", error);
+            }
+        }
+
+        // Função para adicionar um novo IP ao Netstat
+        document.getElementById('netstatForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const ip = document.getElementById('netstatIpInput').value.trim();
+            if (ip) {
+                try {
+                    const response = await fetch('/add_netstat_ip', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ip }),
+                    });
+                    const result = await response.json();
+                    if (response.ok) {
+                        document.getElementById('netstatMessage').textContent = result.message;
+                        document.getElementById('netstatMessage').style.color = 'green';
+                        fetchNetstat(); // Atualiza a tabela após adicionar o IP
+                    } else {
+                        document.getElementById('netstatMessage').textContent = result.error;
+                        document.getElementById('netstatMessage').style.color = 'red';
+                    }
+                } catch (error) {
+                    document.getElementById('netstatMessage').textContent = "Erro ao conectar ao servidor.";
+                    document.getElementById('netstatMessage').style.color = 'red';
+                    console.error("Erro ao adicionar IP:", error);
+                }
+            } else {
+                document.getElementById('netstatMessage').textContent = "Por favor, insira um IP válido.";
+                document.getElementById('netstatMessage').style.color = 'red';
+            }
+        });
+
+        // Atualiza a tabela automaticamente a cada 30 segundos
+        setInterval(fetchNetstat, 30000);
+
+        // Chama a função para buscar os dados ao carregar a página
+        fetchNetstat();
+    </script>
+</body>
+</html>
