@@ -5,22 +5,6 @@
     <title>{% if lang == 'en' %}IP Monitoring Dashboard{% else %}Monitoramento de IP{% endif %}</title>
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body { font-family: Arial, sans-serif; background: #f7f7f7; margin: 0; padding: 0; }
-        .container { max-width: 700px; margin: 40px auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 32px 40px 24px 40px; }
-        h1, h2 { color: #2c3e50; }
-        ul { padding-left: 20px; }
-        li { margin-bottom: 6px; }
-        label { font-weight: bold; }
-        select, input[type="text"] { padding: 6px 10px; border-radius: 4px; border: 1px solid #bbb; margin-right: 8px; }
-        button { background: #2980d9; color: #fff; border: none; border-radius: 4px; padding: 7px 18px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
-        button:hover { background: #145a96; }
-        #add-ip-msg { margin-top: 8px; font-weight: bold; }
-        #status-alerts { margin: 12px 0 20px 0; padding: 10px; background: #f4f4f4; border-radius: 5px; min-height: 30px; }
-        footer { margin-top: 40px; text-align: center; color: #888; font-size: 0.95em; }
-        #languageSwitcher { margin-bottom: 20px; }
-        #languageSwitcher button { margin-right: 8px; }
-    </style>
 </head>
 <body>
 <div class="container">
@@ -28,18 +12,19 @@
 
     <!-- Language Switcher -->
     <div id="languageSwitcher">
-        <button onclick="switchLanguage('pt')">Português</button>
-        <button onclick="switchLanguage('en')">English</button>
+        <button type="button" onclick="switchLanguage('pt')" id="btn-pt">Português</button>
+        <button type="button" onclick="switchLanguage('en')" id="btn-en">English</button>
     </div>
 
     <!-- IP List -->
     <h2 id="ipListTitle">{% if lang == 'en' %}Monitored IPs{% else %}IPs Monitorados{% endif %}</h2>
-    <ul id="ipList"></ul>
-
-    <!-- Navigation to Netstat Page -->
-    <div id="navigation">
-        <a href="/netstat_page" style="text-decoration: none; color: #007bff;">Netstat</a>
-    </div>
+    <ul id="ipList">
+        {% for ip, hostname in ip_hostnames %}
+            <li><b>{{ ip }}</b>{% if hostname and hostname != ip %} - <span class="hostname">{{ hostname }}</span>{% endif %}</li>
+        {% else %}
+            <li class="muted">{% if lang == 'en' %}No IPs registered.{% else %}Nenhum IP cadastrado.{% endif %}</li>
+        {% endfor %}
+    </ul>
 
     <!-- Latency Chart -->
     <h2 id="latencyChartTitle">{% if lang == 'en' %}Latency Chart{% else %}Gráfico de Latência{% endif %}</h2>
@@ -52,40 +37,32 @@
             <input type="text" id="nslookupInput" placeholder="{% if lang == 'en' %}Enter an IP or hostname{% else %}Digite um IP ou hostname{% endif %}">
             <button type="submit" id="nslookupBtn">{% if lang == 'en' %}Resolve DNS{% else %}Resolver DNS{% endif %}</button>
         </form>
-        <div id="nslookupResult"></div>
+        <div id="nslookupResult" aria-live="polite"></div>
     </div>
 
     <!-- Alerts -->
     <div id="alerts">
-        <p id="offlineAlert">{% if lang == 'en' %}Offline IPs: None{% else %}IPs Offline: Nenhum{% endif %}</p>
-        <p id="latencyAlert">{% if lang == 'en' %}Latency Alerts: None{% else %}Alertas de Latência: Nenhum{% endif %}</p>
-        <p id="actionMessage"></p>
+        <p id="offlineAlert" class="alert-ok">{% if lang == 'en' %}Offline IPs: None{% else %}IPs Offline: Nenhum{% endif %}</p>
+        <p id="latencyAlert" class="alert-ok">{% if lang == 'en' %}Latency Alerts: None{% else %}Alertas de Latência: Nenhum{% endif %}</p>
+        <p id="actionMessage" role="status"></p>
     </div>
-
-    <!-- IP Hostnames -->
-    <h2 id="hostnamesTitle">{% if lang == 'en' %}IP Hostnames{% else %}Hostnames dos IPs{% endif %}</h2>
-    <ul>
-     {% for ip, hostname in ip_hostnames %}
-     <li>{{ ip }} - {{ hostname }}</li>
-     {% endfor %}
-    </ul>
 
     <!-- IP Actions -->
     <h2 id="ipActionsTitle">{% if lang == 'en' %}Manage IPs{% else %}Gerenciar IPs{% endif %}</h2>
     <div id="ipActions">
         <form id="addForm">
-            <input type="text" id="addInput" placeholder="{% if lang == 'en' %}Add IP{% else %}Adicionar IP{% endif %}">
+            <input type="text" id="addInput" placeholder="{% if lang == 'en' %}Add IP{% else %}Adicionar IP{% endif %}" required>
             <button type="submit" id="addBtn">{% if lang == 'en' %}Add{% else %}Adicionar{% endif %}</button>
         </form>
 
         <form id="removeForm">
-            <input type="text" id="removeInput" placeholder="{% if lang == 'en' %}Remove IP{% else %}Remover IP{% endif %}">
+            <input type="text" id="removeInput" placeholder="{% if lang == 'en' %}Remove IP{% else %}Remover IP{% endif %}" required>
             <button type="submit" id="removeBtn">{% if lang == 'en' %}Remove{% else %}Remover{% endif %}</button>
         </form>
 
         <form id="modifyForm">
-            <input type="text" id="oldIpInput" placeholder="{% if lang == 'en' %}Old IP{% else %}IP Antigo{% endif %}">
-            <input type="text" id="newIpInput" placeholder="{% if lang == 'en' %}New IP{% else %}Novo IP{% endif %}">
+            <input type="text" id="oldIpInput" placeholder="{% if lang == 'en' %}Old IP{% else %}IP Antigo{% endif %}" required>
+            <input type="text" id="newIpInput" placeholder="{% if lang == 'en' %}New IP{% else %}Novo IP{% endif %}" required>
             <button type="submit" id="modifyBtn">{% if lang == 'en' %}Modify{% else %}Modificar{% endif %}</button>
         </form>
     </div>
@@ -103,33 +80,10 @@
 </div>
 
 <script>
-    let currentLanguage = '{{ lang }}' || 'en';
-    const ipList = document.getElementById('ipList');
-    const offlineAlert = document.getElementById('offlineAlert');
-    const latencyAlert = document.getElementById('latencyAlert');
-    const actionMessage = document.getElementById('actionMessage');
-    const nslookupResult = document.getElementById('nslookupResult');
+    // mapa de hostnames fornecido pelo servidor (preenchido a partir de ip_hostnames)
+    const HOSTNAME_MAP = {{ dict(ip_hostnames) | tojson }};
 
-    const ctx = document.getElementById('latencyChart').getContext('2d');
-    const latencyChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: [],
-            datasets: [{
-                label: 'Latência (ms)',
-                data: [],
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                borderColor: 'rgba(75, 192, 192, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            scales: {
-                y: { beginAtZero: true }
-            }
-        }
-    });
-
+    // traduções usadas no client (sincronizadas com o server)
     const translations = {
         pt: {
             title: "Painel de Monitoramento de IPs",
@@ -152,7 +106,9 @@
             offlineAlert: "IPs Offline: ",
             latencyAlert: "Alertas de Latência: ",
             none: "Nenhum",
-            netstat: "Netstat",
+            active: "Ativo",
+            inactive: "Inativo",
+            latency_na: "N/D",
             copyright: "© 2025 Vinicius Landim. Todos os direitos reservados."
         },
         en: {
@@ -176,10 +132,27 @@
             offlineAlert: "Offline IPs: ",
             latencyAlert: "Latency Alerts: ",
             none: "None",
-            netstat: "Netstat",
+            active: "Active",
+            inactive: "Inactive",
+            latency_na: "N/A",
             copyright: "© 2025 Vinicius Landim. All rights reserved."
         }
     };
+
+    // inicial
+    let currentLanguage = "{{ lang }}" || 'pt';
+    const ipList = document.getElementById('ipList');
+    const offlineAlert = document.getElementById('offlineAlert');
+    const latencyAlert = document.getElementById('latencyAlert');
+    const actionMessage = document.getElementById('actionMessage');
+    const nslookupResult = document.getElementById('nslookupResult');
+
+    const ctx = document.getElementById('latencyChart').getContext('2d');
+    const latencyChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: [], datasets: [{ label: 'Latência (ms)', data: [], backgroundColor: 'rgba(75,192,192,0.3)' }] },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
 
     function switchLanguage(lang) {
         currentLanguage = lang;
@@ -188,7 +161,6 @@
         document.getElementById('ipListTitle').textContent = t.ipListTitle;
         document.getElementById('latencyChartTitle').textContent = t.latencyChartTitle;
         document.getElementById('nslookupTitle').textContent = t.nslookupTitle;
-        document.getElementById('hostnamesTitle').textContent = t.hostnamesTitle;
         document.getElementById('ipActionsTitle').textContent = t.ipActionsTitle;
         document.getElementById('addInput').placeholder = t.addPlaceholder;
         document.getElementById('removeInput').placeholder = t.removePlaceholder;
@@ -199,15 +171,18 @@
         document.getElementById('removeBtn').textContent = t.removeBtn;
         document.getElementById('modifyBtn').textContent = t.modifyBtn;
         document.getElementById('nslookupBtn').textContent = t.nslookupBtn;
-        document.getElementById('navigation').querySelector('a').textContent = t.netstat;
+        document.getElementById('btn-pt').disabled = (lang === 'pt');
+        document.getElementById('btn-en').disabled = (lang === 'en');
         document.getElementById('footerCopyright').textContent = t.copyright;
+        // atualiza dados exibidos
         fetchIPs();
     }
 
+    // busca status do servidor e atualiza UI (usa HOSTNAME_MAP se disponível)
     async function fetchIPs() {
         try {
-            const response = await fetch(`/status?lang=${currentLanguage}`);
-            const data = await response.json();
+            const resp = await fetch(`/status?lang=${encodeURIComponent(currentLanguage)}`);
+            const data = await resp.json();
 
             ipList.innerHTML = '';
             const labels = [];
@@ -215,43 +190,65 @@
             const offlineIPs = [];
             const highLatencyIPs = [];
 
-            for (const [ip, details] of Object.entries(data.status)) {
-                const item = document.createElement('li');
-                item.textContent = `${ip}: ${details.status} - Latência: ${details.latency}`;
-                ipList.appendChild(item);
+            for (const [ip, details] of Object.entries(data.status || {})) {
+                const li = document.createElement('li');
 
-                if (details.status === "Inativo" || details.status === "Inactive") {
-                    offlineIPs.push(ip);
-                }
+                // pega hostname do mapa embutido (server-side) ou de details se o backend enviar
+                const hostname = (HOSTNAME_MAP && HOSTNAME_MAP[ip]) || details.hostname || ip;
 
-                if (details.latency > 100) {
-                    highLatencyIPs.push(`${ip} (${details.latency} ms)`);
-                }
+                // status class
+                let statusClass = 'status-inactive';
+                if (details.status === translations[currentLanguage].active) statusClass = 'status-active';
+                const latencyVal = (typeof details.latency === 'number') ? details.latency : (isFinite(Number(details.latency)) ? Number(details.latency) : null);
+
+                li.innerHTML = `<b>${ip}</b>${hostname && hostname !== ip ? ' - <span class="hostname">' + hostname + '</span>' : ''} - <span class="${statusClass}">${details.status}</span> - Latência: <span>${latencyVal !== null ? latencyVal + ' ms' : translations[currentLanguage].latency_na}</span>`;
+                ipList.appendChild(li);
+
+                if (details.status === translations[currentLanguage].inactive) offlineIPs.push(ip);
+                if (latencyVal !== null && latencyVal > 100) highLatencyIPs.push(`${ip} (${latencyVal} ms)`);
 
                 labels.push(ip);
-                latencies.push(details.latency === "N/D" || details.latency === "N/A" ? 0 : details.latency);
+                latencies.push(latencyVal !== null ? latencyVal : 0);
             }
 
-            offlineAlert.textContent = `${translations[currentLanguage].offlineAlert}${offlineIPs.length ? offlineIPs.join(', ') : translations[currentLanguage].none}`;
-            latencyAlert.textContent = `${translations[currentLanguage].latencyAlert}${highLatencyIPs.length ? highLatencyIPs.join(', ') : translations[currentLanguage].none}`;
+            // offline alert
+            if (offlineIPs.length) {
+                offlineAlert.className = 'alert-error';
+                offlineAlert.textContent = `${translations[currentLanguage].offlineAlert}${offlineIPs.join(', ')}`;
+            } else {
+                offlineAlert.className = 'alert-ok';
+                offlineAlert.textContent = `${translations[currentLanguage].offlineAlert}${translations[currentLanguage].none}`;
+            }
+
+            // latency alert
+            if (highLatencyIPs.length) {
+                latencyAlert.className = 'alert-warning';
+                latencyAlert.textContent = `${translations[currentLanguage].latencyAlert}${highLatencyIPs.join(', ')}`;
+            } else {
+                latencyAlert.className = 'alert-ok';
+                latencyAlert.textContent = `${translations[currentLanguage].latencyAlert}${translations[currentLanguage].none}`;
+            }
 
             latencyChart.data.labels = labels;
             latencyChart.data.datasets[0].data = latencies;
             latencyChart.update();
-        } catch (error) {
-            console.error("Erro ao buscar IPs:", error);
+        } catch (err) {
+            console.error('Erro ao buscar IPs:', err);
+            actionMessage.textContent = (currentLanguage === 'en') ? 'Error fetching IPs.' : 'Erro ao buscar IPs.';
+            actionMessage.style.color = 'red';
         }
     }
 
+    // helper para chamadas de update
     async function updateIPs(payload) {
         try {
-            const response = await fetch('/update_ips', {
+            const resp = await fetch('/update_ips', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
+                body: JSON.stringify(payload)
             });
-            const result = await response.json();
-            if (response.ok) {
+            const result = await resp.json();
+            if (resp.ok) {
                 actionMessage.textContent = result.message;
                 actionMessage.style.color = 'green';
             } else {
@@ -259,62 +256,57 @@
                 actionMessage.style.color = 'red';
             }
             fetchIPs();
-        } catch (error) {
-            console.error("Erro ao atualizar IPs:", error);
+        } catch (err) {
+            console.error('Erro updateIPs:', err);
         }
     }
 
+    // form handlers
     document.getElementById('addForm').addEventListener('submit', (e) => {
         e.preventDefault();
         const ip = document.getElementById('addInput').value.trim();
-        if (ip) {
-            updateIPs({ add: ip });
-            document.getElementById('addInput').value = '';
-        }
+        if (ip) updateIPs({ add: ip });
+        document.getElementById('addInput').value = '';
     });
 
     document.getElementById('removeForm').addEventListener('submit', (e) => {
         e.preventDefault();
         const ip = document.getElementById('removeInput').value.trim();
-        if (ip) {
-            updateIPs({ remove: ip });
-            document.getElementById('removeInput').value = '';
-        }
+        if (ip) updateIPs({ remove: ip });
+        document.getElementById('removeInput').value = '';
     });
 
     document.getElementById('modifyForm').addEventListener('submit', (e) => {
         e.preventDefault();
         const oldIp = document.getElementById('oldIpInput').value.trim();
         const newIp = document.getElementById('newIpInput').value.trim();
-        if (oldIp && newIp) {
-            updateIPs({ modify: { old_ip: oldIp, new_ip: newIp } });
-            document.getElementById('oldIpInput').value = '';
-            document.getElementById('newIpInput').value = '';
-        }
+        if (oldIp && newIp) updateIPs({ modify: { old_ip: oldIp, new_ip: newIp } });
+        document.getElementById('oldIpInput').value = '';
+        document.getElementById('newIpInput').value = '';
     });
 
     document.getElementById('nslookupForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const host = document.getElementById('nslookupInput').value.trim();
-        if (host) {
-            try {
-                nslookupResult.textContent = "Resolvendo...";
-                const response = await fetch(`/nslookup?host=${host}`);
-                const result = await response.json();
-                if (response.ok) {
-                    nslookupResult.textContent = `${translations[currentLanguage].nslookupResult} ${JSON.stringify(result)}`;
-                } else {
-                    nslookupResult.textContent = `${translations[currentLanguage].nslookupError} ${result.error}`;
-                }
-            } catch (error) {
-                nslookupResult.textContent = translations[currentLanguage].nslookupError;
+        if (!host) return;
+        nslookupResult.textContent = translations[currentLanguage].nslookupResult;
+        try {
+            const resp = await fetch(`/nslookup?host=${encodeURIComponent(host)}`);
+            const result = await resp.json();
+            if (resp.ok) {
+                nslookupResult.textContent = `${translations[currentLanguage].nslookupResult} ${JSON.stringify(result)}`;
+            } else {
+                nslookupResult.textContent = `${translations[currentLanguage].nslookupError} ${result.error || ''}`;
             }
+        } catch (err) {
+            nslookupResult.textContent = translations[currentLanguage].nslookupError;
         }
     });
 
-    // Atualiza footer e textos ao trocar idioma
+    // inicializa textos e dados
     switchLanguage(currentLanguage);
-
-    fetchIPs();
-    setInterval(fetchIPs, 20000); // Atualiza a cada 20 segundos
+    // atualiza periodicamente
+    setInterval(fetchIPs, 20000);
 </script>
+</body>
+</html>
